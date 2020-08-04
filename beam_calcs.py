@@ -66,15 +66,37 @@ def wrap_phase_deg(phi):
 			# 360 a 0
 	return phi
 
+# Takes in a spherical coordinate system and patch antenna parameters and 
+# calculates the the antenna pattern. elev is the elevation, azi is the azimuth,
+# W is width, L is length, k is wavenumber in free space.
+def patch_ant_pat(azi, elev, W, L, k):
+	e_elev = e_elev_calc(azi, elev, W, L, k)
+	e_azi = e_azi_calc(azi, elev, W, L, k)
+	patch_pattern = np.sqrt(np.power(e_elev,2)+np.power(e_azi,2))
+	return patch_pattern
+
+def e_elev_calc(azi, elev, W, L, k):
+	num = np.sin(k*W*np.sin(elev)*np.sin(azi)/2)
+	denom = k*W*np.sin(elev)*np.sin(azi)/2
+	fact = np.cos(k*L*np.sin(elev)*np.sin(azi)/2)*np.cos(azi)
+	return num*denom*fact
+
+def e_azi_calc(azi, elev, W, L, k):
+	num = -1*np.sin(k*W*np.sin(elev)*np.sin(azi)/2)
+	denom = k*W*np.sin(elev)*np.sin(azi)/2
+	fact = np.cos(k*L*np.sin(elev)*np.sin(azi)/2)*np.cos(elev)*np.sin(azi)
+	return num*denom*fact
+
 
 # If running the module as a script, run the test code
 if __name__ == '__main__':
-	R = 1000
+	# Set up consts
+	R = 1000 # Far-field radius
 	freq = 10*10**9
 	v_p = 3*10**8
 	wave_l = v_p/freq
 	k = 1/wave_l
-	d_e = wave_l/2
+	d_e = wave_l/2 # Distance between elements
 
 	main_beam_azi = 45
 	main_beam_elev = 90
@@ -85,11 +107,12 @@ if __name__ == '__main__':
 	main_beam_azi = float(main_beam_azi)
 	main_beam_elev = float(main_beam_elev)
 
-
+	# Translate azi and elev to unit vector in rectangular coords
 	main_beam_vec = sphere_to_rect(main_beam_azi*np.pi/180, main_beam_elev*np.pi/180, 1)
 
 	print(main_beam_vec)
 
+	# Determine corresponding rotations in zx and xy planes
 	theta_zx = np.arctan(np.array(main_beam_vec[0])/\
 		(main_beam_vec[2]+10**(-10)))*180/np.pi
 	theta_yz = np.arctan(np.array(main_beam_vec[1])/\
@@ -98,16 +121,19 @@ if __name__ == '__main__':
 	print(theta_zx)
 	print(theta_yz)
 
+	# Calculate the phase shift required to produce the rotation in each plane
 	d_phi_zx = phase_shift_calc(d_e/wave_l,theta_zx)
 	print(d_phi_zx)
 
 	d_phi_yz = phase_shift_calc(d_e/wave_l,theta_yz)
 	print(d_phi_yz)
-
+	
+	# Sum the phase shifts in correct planes
 	phi_11 = d_phi_zx+d_phi_yz
 	phi_01 = d_phi_yz
 	phi_10 = d_phi_zx
 
+	# Set up antenna sources
 	sources = []
 	sources.append(dict(\
 		coords=np.array([d_e/2,d_e/2,0]),\
@@ -141,17 +167,22 @@ if __name__ == '__main__':
 	print(wave_l)
 	print(k)
 
+	# Set up coordinate system
 	num_azi = 200
 	num_elev = 200
-
-	# AF_c = np.zeros((num_azi,num_elev),dtype=complex)
-	# AF = np.zeros((num_azi,num_elev))
 
 	azi = np.linspace(-np.pi, np.pi, num_azi)
 	elev = np.linspace(-np.pi/2, np.pi/2, num_elev)
 	azi_v, elev_v = np.meshgrid(azi, elev)
-
+	
+	# Calculate array factor
 	AF = calc_af_at_dest(azi_v, elev_v, R, sources)
+	
+	W = 0.008
+	L = 0.00932
+
+	# Calculate antenna pattern
+	AP = patch_ant_pat(azi_v, elev_v, W, L, 2*np.pi*k)
 
 	fig = plt.figure()
 	ax = plt.axes(projection='3d')
@@ -160,14 +191,23 @@ if __name__ == '__main__':
 	ax.set_ylabel('Elevation (degrees)')
 	ax.set_zlabel('Array Factor')
 
-	pattern = sphere_to_rect(azi_v, elev_v, AF)
+	factor = sphere_to_rect(azi_v, elev_v, AF)
 
 	fig = plt.figure()
 	ax = plt.axes(projection='3d')
-	ax.plot_wireframe(pattern[0], pattern[1], pattern[2], label='Array Pattern')
+	ax.plot_wireframe(factor[0], factor[1], factor[2], label='Array Pattern')
 	ax.set_xlabel('X')
 	ax.set_ylabel('Y')
 	ax.set_zlabel('Z')
 
+	patch_pattern = sphere_to_rect(azi_v, elev_v, AP)
+
+	fig = plt.figure()
+	ax = plt.axes(projection='3d')
+	ax.plot_wireframe(patch_pattern[0], patch_pattern[1], patch_pattern[2], label='Array Pattern')
+	ax.set_xlabel('X')
+	ax.set_ylabel('Y')
+	ax.set_zlabel('Z')
+	
 	plt.show()
 
