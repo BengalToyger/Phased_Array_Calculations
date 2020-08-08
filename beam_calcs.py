@@ -30,12 +30,22 @@ def calc_wave(source, destination, phase, k, A):
 	return wave
 
 # Convert spherical coorinates to rectangular coordinates
-# azi is the angle in the ZX plane
-# elev is the angle above or below the ZX plane
-def sphere_to_rect(azi, elev, R):
+# azi is the angle in the XY plane relative to the X axis
+# elev is the angle above or below the XY
+def sphere_to_rect_xy(azi, elev, R):
 	x = R*np.cos(elev)*np.cos(azi)
 	y = R*np.cos(elev)*np.sin(azi)
 	z = R*np.sin(elev)
+	dest = np.array([x, y, z])
+	return dest
+
+# Convert spherical coorinates to rectangular coordinates
+# azi is the angle in the XY plane relative to the X axis
+# elev is the angle relative to the z axis
+def sphere_to_rect_std(azi, elev, R):
+	x = R*np.sin(elev)*np.cos(azi)
+	y = R*np.sin(elev)*np.sin(azi)
+	z = R*np.cos(elev)
 	dest = np.array([x, y, z])
 	return dest
 
@@ -45,7 +55,7 @@ def sphere_to_rect(azi, elev, R):
 def calc_af_at_dest(azi, elev, R, sources):
 	AF_c = np.zeros((len(azi),len(elev)),dtype=complex)
 	AF = np.zeros((len(azi),len(elev)))
-	dest = sphere_to_rect(azi,elev,R)
+	dest = sphere_to_rect_xy(azi,elev,R)
 	for w in sources:
 		AF_c=AF_c+calc_wave(w['coords'],dest,w['phase'],k,\
 		w['A'])
@@ -73,20 +83,30 @@ def patch_ant_pat(azi, elev, W, L, k):
 	e_elev = e_elev_calc(azi, elev, W, L, k)
 	e_azi = e_azi_calc(azi, elev, W, L, k)
 	patch_pattern = np.sqrt(np.power(e_elev,2)+np.power(e_azi,2))
+	norm_p = np.amax(patch_pattern)
+	patch_pattern = patch_pattern/norm_p
 	return patch_pattern
 
 def e_elev_calc(azi, elev, W, L, k):
-	num = np.sin(k*W*np.sin(elev)*np.sin(azi)/2)
-	denom = k*W*np.sin(elev)*np.sin(azi)/2
-	fact = np.cos(k*L*np.sin(elev)*np.sin(azi)/2)*np.cos(azi)
-	return num*denom*fact
+	num = num_calc(azi, elev, W, L, k)
+	denom = denom_calc(azi, elev, W, L, k)
+	fact = fact_calc(azi, elev, W, L, k)*np.cos(azi)
+	return num/denom*fact
 
 def e_azi_calc(azi, elev, W, L, k):
-	num = -1*np.sin(k*W*np.sin(elev)*np.sin(azi)/2)
-	denom = k*W*np.sin(elev)*np.sin(azi)/2
-	fact = np.cos(k*L*np.sin(elev)*np.sin(azi)/2)*np.cos(elev)*np.sin(azi)
-	return num*denom*fact
+	num = -1*num_calc(azi, elev, W, L, k)
+	denom = denom_calc(azi, elev, W, L, k)
+	fact = fact_calc(azi, elev, W, L, k)*np.cos(elev)*np.sin(azi)
+	return num/denom*fact
 
+def num_calc(azi, elev, W, L, k):
+	return np.sin(k*W*np.sin(elev)*np.sin(azi)/2)
+
+def denom_calc(azi, elev, W, L, k):
+	return k*W*np.sin(elev)*np.sin(azi)/2
+
+def fact_calc(azi, elev, W, L, k):
+	return np.cos(k*L*np.sin(elev)*np.cos(azi)/2)
 
 # If running the module as a script, run the test code
 if __name__ == '__main__':
@@ -108,7 +128,7 @@ if __name__ == '__main__':
 	main_beam_elev = float(main_beam_elev)
 
 	# Translate azi and elev to unit vector in rectangular coords
-	main_beam_vec = sphere_to_rect(main_beam_azi*np.pi/180, main_beam_elev*np.pi/180, 1)
+	main_beam_vec = sphere_to_rect_xy(main_beam_azi*np.pi/180, main_beam_elev*np.pi/180, 1)
 
 	print(main_beam_vec)
 
@@ -178,11 +198,6 @@ if __name__ == '__main__':
 	# Calculate array factor
 	AF = calc_af_at_dest(azi_v, elev_v, R, sources)
 	
-	W = 0.008
-	L = 0.00932
-
-	# Calculate antenna pattern
-	AP = patch_ant_pat(azi_v, elev_v, W, L, 2*np.pi*k)
 
 	fig = plt.figure()
 	ax = plt.axes(projection='3d')
@@ -191,7 +206,7 @@ if __name__ == '__main__':
 	ax.set_ylabel('Elevation (degrees)')
 	ax.set_zlabel('Array Factor')
 
-	factor = sphere_to_rect(azi_v, elev_v, AF)
+	factor = sphere_to_rect_xy(azi_v, elev_v, AF)
 
 	fig = plt.figure()
 	ax = plt.axes(projection='3d')
@@ -200,7 +215,17 @@ if __name__ == '__main__':
 	ax.set_ylabel('Y')
 	ax.set_zlabel('Z')
 
-	patch_pattern = sphere_to_rect(azi_v, elev_v, AP)
+	W = 0.008
+	L = 0.00932
+	
+	azi = np.linspace(-np.pi, np.pi, num_azi)
+	elev = np.linspace(0.001, np.pi, num_elev)
+	azi_v, elev_v = np.meshgrid(azi, elev)
+	
+	# Calculate antenna pattern
+	AP = patch_ant_pat(azi_v, elev_v, W, L, 2*np.pi*k)
+	
+	patch_pattern = sphere_to_rect_std(azi_v, elev_v, AP)
 
 	fig = plt.figure()
 	ax = plt.axes(projection='3d')
