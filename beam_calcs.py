@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # shift difference in degrees between the elements 
 # (d_phi) needed to 
 # steer the beam theta_s degrees from a direction normal
-# to the array
+# to the array. 
 def phase_shift_calc(d_div_lam, theta_s):
 	d_phi = 360*np.sin(theta_s*np.pi/180)*d_div_lam
 	return d_phi
@@ -78,7 +78,9 @@ def wrap_phase_deg(phi):
 
 # Takes in a spherical coordinate system and patch antenna parameters and 
 # calculates the the antenna pattern. elev is the elevation, azi is the azimuth,
-# W is width, L is length, k is wavenumber in free space.
+# W is width, L is length, k is wavenumber in free space. This function appears
+# to be correct. It is found on 
+# http://www.antenna-theory.com/antennas/patches/antenna.php
 def patch_ant_pat(azi, elev, W, L, k):
 	e_elev = e_elev_calc(azi, elev, W, L, k)
 	e_azi = e_azi_calc(azi, elev, W, L, k)
